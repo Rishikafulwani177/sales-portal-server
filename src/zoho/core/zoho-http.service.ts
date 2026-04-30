@@ -11,7 +11,7 @@ export class ZohoHttpService {
     url: string,
     service: ZohoService,
     body?: any,
-    options?: { responseType?: 'json' | 'arraybuffer' }, // ✅ NEW (optional)
+    options?: { responseType?: 'json' | 'arraybuffer' | 'stream' }, // ✅ NEW (optional)
   ) {
     const token = await this.auth.getValidAccessToken(service);
 

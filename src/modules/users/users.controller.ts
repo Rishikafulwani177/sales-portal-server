@@ -25,6 +25,15 @@ export class UsersController {
     return this.usersService.addAddress(id, body);
   }
 
+  @Patch(':id/address/:addressId')
+  updateUserAddress(
+    @Param('id') id: string,
+    @Param('addressId') addressId: string,
+    @Body() body: Partial<AddAddressDto>,
+  ) {
+    return this.usersService.updateAddress(id, addressId, body);
+  }
+
   @Get(':id/address')
   getUserAddresses(@Param('id') id: string) {
     return this.usersService.findAddressesByUserId(id);

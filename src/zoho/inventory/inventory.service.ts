@@ -39,24 +39,25 @@ export class ZohoInventoryService {
       `https://www.zohoapis.in/inventory/v1/items/${itemId}/image?organization_id=${this.getOrgId()}`,
       'inventory',
       undefined,
-      { responseType: 'arraybuffer' }, // ✅ NOW WORKS
+      { responseType: 'arraybuffer' },
     );
   }
 
-  async getItemImageUploadPayload(
-    itemId: string,
-    existingHash?: string,
-  ) {
+  async getItemImageUploadPayload(itemId: string, existingHash?: string) {
     const imageUrl = `https://www.zohoapis.in/inventory/v1/items/${itemId}/image?organization_id=${this.getOrgId()}`;
-
     const token = await this.zohoAuthService.getValidAccessToken('inventory');
-    
-    return {
-      imageUrl,
-      itemId,
-      zohoToken: token,
-      existingHash,
-    };
+    try {
+      await this.http.request('GET', imageUrl, 'inventory', undefined, {
+        responseType: 'stream',
+      });
+    } catch (err: any) {
+      if (err?.response?.status === 400 || err?.response?.status === 404) {
+        throw new Error(`NO_IMAGE: Item ${itemId} has no image in Zoho`);
+      }
+      throw err;
+    }
+
+    return { imageUrl, itemId, zohoToken: token, existingHash };
   }
 
   async createSalesOrder(order: any, customerId: string) {

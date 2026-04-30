@@ -4,7 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from './schemas/user.schema';
 import { CrmService } from '../../zoho/crm/crm.service';
-import { AxiosError } from 'axios';
+import { AddAddressDto } from './dto/add-address.dto';
 
 @Injectable()
 export class UsersService {
@@ -64,24 +64,77 @@ export class UsersService {
   }
 
   // 🔹 Add address
-  async addAddress(userId: string, address: any) {
-    console.log('--- SERVICE HIT ---');
-    console.log('User ID:', userId);
-    console.log('Address Payload:', address);
+  async addAddress(userId: string, address: AddAddressDto) {
+    const cleanId = userId.replace(/[^a-fA-F0-9]/g, '');
+
+    const user = await this.userModel.findById(cleanId);
+    if (!user) {
+      throw new Error('User not found');
+    }
 
     try {
-      const result = await this.userModel.findByIdAndUpdate(
-        userId,
-        { $push: { addresses: address } },
-        { new: true, runValidators: true }
+      const updatedUser = await this.userModel.findByIdAndUpdate(
+        cleanId,
+        {
+          $push: {
+            addresses: address,
+          },
+        },
+        {
+          new: true,
+          runValidators: true,
+        },
       );
 
-      console.log('✅ DB Update Success:', result);
-      return result;
-    } catch (error: unknown) {
-      const AxiosError = error as AxiosError;
-      console.log('❌ DB ERROR:', AxiosError.message);
-      console.log(error);
+      return updatedUser?.addresses;
+    } catch (error: any) {
+      console.error('❌ ADD ADDRESS ERROR:', error.message);
+      throw error;
+    }
+  }
+
+  // update address
+  async updateAddress(
+    userId: string,
+    addressId: string,
+    updateData: Partial<AddAddressDto>,
+  ) {
+    const cleanUserId = userId.replace(/[^a-fA-F0-9]/g, '');
+
+    const user = await this.userModel.findById(cleanUserId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    try {
+      const updatedUser = await this.userModel.findOneAndUpdate(
+        {
+          _id: cleanUserId,
+          'addresses._id': addressId,
+        },
+        {
+          $set: {
+            'addresses.$': {
+              ...updateData,
+              _id: addressId, // preserve ID
+            },
+          },
+        },
+        {
+          new: true,
+          runValidators: true,
+        },
+      );
+
+      if (!updatedUser) {
+        throw new Error('Address not found');
+      }
+
+      return updatedUser.addresses.find(
+        (addr: any) => addr._id.toString() === addressId,
+      );
+    } catch (error: any) {
+      console.error('❌ UPDATE ADDRESS ERROR:', error.message);
       throw error;
     }
   }
