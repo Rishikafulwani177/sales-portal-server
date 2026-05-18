@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, Logger, OnModuleInit } from '@nestjs/com
 import { InjectModel } from '@nestjs/mongoose';
 import { Cron } from '@nestjs/schedule';
 import { Product } from './schemas/product.schema';
-import { Model } from 'mongoose';
+import { Model, isValidObjectId } from 'mongoose';
 import { ZohoInventoryService } from '../../zoho/inventory/inventory.service';
 import { ZohoImageSyncService } from '../../integrations/zoho-image-sync/zoho-image-sync.service';
 import { ZohoCommerceStorefrontService } from '../../zoho/commerce/commerce-storefront.service';
@@ -165,7 +165,9 @@ export class ProductsService implements OnModuleInit {
         is_active: true,
         show_in_storefront: true,
       })
-      .select('name price stock description image category_name show_in_storefront')
+      .select(
+        'name price stock description image category_name sku weight weight_unit dimensions zoho_item_id show_in_storefront',
+      )
       .lean();
 
     const total = await this.productModel.countDocuments({
@@ -182,11 +184,11 @@ export class ProductsService implements OnModuleInit {
 
   // 🔹 Get single product
   async getProductById(id: string) {
-    const product = await this.productModel
-      .findOne({
-        $or: [{ _id: id }, { zoho_item_id: id }],
-      })
-      .lean();
+    const query = isValidObjectId(id)
+      ? { $or: [{ _id: id }, { zoho_item_id: id }] }
+      : { zoho_item_id: id };
+
+    const product = await this.productModel.findOne(query).lean();
 
     if (!product) {
       throw new NotFoundException('Product not found');
@@ -242,4 +244,4 @@ export class ProductsService implements OnModuleInit {
       totalPages: Math.ceil(total / limit),
     };
   }
-}
+}

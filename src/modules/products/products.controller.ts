@@ -20,10 +20,6 @@ export class ProductsController {
 
   @Get('/id/:id')
   async getProduct(@Param('id') id: string) {
-    if (!isValidObjectId(id)) {
-      throw new BadRequestException('Invalid product ID');
-    }
-
     return this.productsService.getProductById(id);
   }
 

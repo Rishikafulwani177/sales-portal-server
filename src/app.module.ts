@@ -17,6 +17,7 @@ import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { ZohoImageSyncModule } from './integrations/zoho-image-sync/zoho-image-sync.module';
 import { ZohoPaymentsModule } from './zoho/payments/payments.module';
 import { ShippingModule } from './integrations/shipping/shipping.module';
+import { SalesAuthModule } from './modules/salesAuth/salesAuth.module';
 
 
 @Module({
@@ -41,6 +42,7 @@ import { ShippingModule } from './integrations/shipping/shipping.module';
     WishlistModule,
     ZohoImageSyncModule,
     ShippingModule,
+    SalesAuthModule,
   ],
   controllers: [AppController, CallbackController],
   providers: [AppService],
