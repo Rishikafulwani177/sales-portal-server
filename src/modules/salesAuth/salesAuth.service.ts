@@ -36,25 +36,46 @@ export class SalesAuthService implements OnModuleInit {
     SalesAuthService.adminSeedStarted = true;
 
     const adminId = this.configService.get<string>('SALES_ADMIN_ID')?.trim();
-    const password = this.configService.get<string>('SALES_ADMIN_PASSWORD');
+    const password = this.configService.get<string>('SALES_ADMIN_PASSWORD')?.trim();
 
-    if (!adminId || !password) return;
+    console.log('[DEBUG] Admin seed check:', {
+      adminId: adminId,
+      password_provided: !!password,
+      password_length: password?.length,
+    });
+
+    if (!adminId || !password) {
+      console.warn('[WARN] Skipping admin seed - missing credentials');
+      return;
+    }
 
     const existingAdmin = await this.salesAdminModel.findOne({
       singleton_key: 'SALES_ADMIN',
     });
 
-    if (existingAdmin) return;
+    if (existingAdmin) {
+      console.log('[DEBUG] Admin already exists, skipping seed', {
+        admin_id: existingAdmin.admin_id,
+        password_hash_exists: !!existingAdmin.password_hash,
+      });
+      return;
+    }
 
+    console.log('[DEBUG] Creating new admin record...');
     const password_hash = await bcrypt.hash(password, 10);
 
-    await this.salesAdminModel.create({
+    const newAdmin = await this.salesAdminModel.create({
       singleton_key: 'SALES_ADMIN',
       admin_id: adminId,
       password_hash,
       name: this.configService.get<string>('SALES_ADMIN_NAME') ?? 'Sales Admin',
       email: this.configService.get<string>('SALES_ADMIN_EMAIL'),
       is_active: true,
+    });
+
+    console.log('[DEBUG] Admin record created:', {
+      admin_id: newAdmin.admin_id,
+      password_hash_length: newAdmin.password_hash?.length,
     });
   }
 
@@ -65,9 +86,31 @@ export class SalesAuthService implements OnModuleInit {
       is_active: true,
     });
 
+    console.log('[DEBUG] Admin lookup result:', {
+      found: !!admin,
+      admin_id: admin?.admin_id,
+      password_hash_exists: !!admin?.password_hash,
+      password_hash_length: admin?.password_hash?.length,
+    });
+
     if (!admin) throw new UnauthorizedException('Invalid admin credentials');
 
+    if (!admin.password_hash) {
+      console.error('[ERROR] Admin password_hash is null or empty!', {
+        admin_id: admin.admin_id,
+        password_hash: admin.password_hash,
+      });
+      throw new UnauthorizedException('Invalid admin credentials');
+    }
+
     const passwordOk = await bcrypt.compare(dto.password, admin.password_hash);
+    console.log('[DEBUG] Password comparison result:', {
+      admin_id: admin.admin_id,
+      passwordOk,
+      inputPasswordLength: dto.password.length,
+      hashLength: admin.password_hash.length,
+    });
+
     if (!passwordOk) {
       throw new UnauthorizedException('Invalid admin credentials');
     }
@@ -126,7 +169,22 @@ export class SalesAuthService implements OnModuleInit {
       is_active: true,
     });
 
+    console.log('[DEBUG] Salesperson lookup result:', {
+      found: !!salesperson,
+      salesperson_id: salesperson?.salesperson_id,
+      password_hash_exists: !!salesperson?.password_hash,
+      password_hash_length: salesperson?.password_hash?.length,
+    });
+
     if (!salesperson) {
+      throw new UnauthorizedException('Invalid salesperson credentials');
+    }
+
+    if (!salesperson.password_hash) {
+      console.error('[ERROR] Salesperson password_hash is null or empty!', {
+        salesperson_id: salesperson.salesperson_id,
+        password_hash: salesperson.password_hash,
+      });
       throw new UnauthorizedException('Invalid salesperson credentials');
     }
 
@@ -134,6 +192,14 @@ export class SalesAuthService implements OnModuleInit {
       dto.password,
       salesperson.password_hash,
     );
+
+    console.log('[DEBUG] Password comparison result:', {
+      salesperson_id: salesperson.salesperson_id,
+      passwordOk,
+      inputPasswordLength: dto.password.length,
+      hashLength: salesperson.password_hash.length,
+    });
+
     if (!passwordOk) {
       throw new UnauthorizedException('Invalid salesperson credentials');
     }

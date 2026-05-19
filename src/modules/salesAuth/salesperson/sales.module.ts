@@ -39,5 +39,6 @@ import { SalesAuthService } from '../salesAuth.service';
   ],
   controllers: [SalesController],
   providers: [SalesAuthService, SalespersonGuard],
+  exports: [SalesAuthService, SalespersonGuard],
 })
 export class SalesModule {}

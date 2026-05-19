@@ -558,6 +558,12 @@ ZOHO_REFRESH_TOKEN=             # Initial setup only — DB takes over after fir
 # JWT
 JWT_SECRET=
 
+# SMS / WhatsApp
+MSG91_AUTH_KEY=
+MSG91_SMS_SENDER_ID=          # Optional sender ID for SMS if required by MSG91
+WHATSAPP_API_URL=             # Example: provider webhook for WhatsApp outbound messages
+WHATSAPP_API_KEY=
+
 # AWS S3 (planned)
 AWS_BUCKET_NAME=
 AWS_REGION=

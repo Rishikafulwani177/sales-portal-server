@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { SendQuotationDto } from './dto/send-quotation.dto';
 
 @Controller('orders')
 @UseGuards(JwtAuthGuard)
@@ -31,6 +32,11 @@ export class OrdersController {
       body.addressId,
       body.couponId,
     );
+  }
+
+  @Post('send-quotation')
+  async sendQuotation(@Body() body: SendQuotationDto) {
+    return this.ordersService.sendQuotation(body);
   }
 
   @Get()

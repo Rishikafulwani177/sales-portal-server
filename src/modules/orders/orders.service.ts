@@ -12,6 +12,8 @@ import { ShippingService } from '../../integrations/shipping/shipping.service';
 import { UsersService } from '../users/users.service';
 import { SmsService } from './sms.service';
 import { Coupon } from '../coupon/schema/coupon.schema';
+import { CommunicationService } from './communication.service';
+import { SendQuotationDto } from './dto/send-quotation.dto';
 
 @Injectable()
 export class OrdersService {
@@ -25,6 +27,7 @@ export class OrdersService {
     private paymentService: ZohoPaymentGatewayService,
     private shippingService: ShippingService,
     private readonly smsService: SmsService,
+    private readonly communicationService: CommunicationService,
     @InjectModel(Coupon.name)
     private couponModel: Model<Coupon>,
   ) { }
@@ -92,6 +95,24 @@ export class OrdersService {
       orderId: order.orderId,
       paymentSessionId: order.paymentSessionId,
     };
+  }
+
+  async sendQuotation(payload: SendQuotationDto) {
+    if (!payload.customerPhone?.trim()) {
+      throw new BadRequestException('customerPhone is required');
+    }
+
+    if (payload.channel === 'sms') {
+      await this.communicationService.sendQuotationSms(payload);
+      return { success: true, channel: 'sms' };
+    }
+
+    if (payload.channel === 'whatsapp') {
+      await this.communicationService.sendQuotationWhatsapp(payload);
+      return { success: true, channel: 'whatsapp' };
+    }
+
+    throw new BadRequestException('Unsupported channel');
   }
 
   async createOrderFromCart(userId: string, addressId: any, couponId?: string,) {

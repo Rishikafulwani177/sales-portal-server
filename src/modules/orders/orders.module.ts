@@ -12,6 +12,7 @@ import { UsersModule } from '../users/users.module';
 import { Product, ProductSchema } from '../products/schemas/product.schema';
 import { ShippingModule } from '../../integrations/shipping/shipping.module';
 import { SmsService } from './sms.service';
+import { CommunicationService } from './communication.service';
 import { CouponModule } from '../coupon/coupon.module';
 
 @Module({
@@ -29,6 +30,6 @@ import { CouponModule } from '../coupon/coupon.module';
     CouponModule
   ],
   controllers: [OrdersController, PaymentsController],
-  providers: [OrdersService, SmsService],
+  providers: [OrdersService, SmsService, CommunicationService],
 })
 export class OrdersModule { }
