@@ -193,6 +193,8 @@ export class SalesController {
         zohoSalesOrderId: document.zohoSalesOrderId,
         isSyncedToZoho: document.isSyncedToZoho,
         quoteNumber: document.data?.quoteNumber || document.documentNumber,
+        onlinePaymentUrl: document.onlinePaymentUrl,
+        onlinePaymentExpiresAt: document.onlinePaymentExpiresAt,
         createdAt: document.createdAt,
         updatedAt: document.updatedAt,
       })),
@@ -227,6 +229,8 @@ export class SalesController {
           zohoSalesOrderId: result.zohoSalesOrderId,
           isSyncedToZoho: result.isSyncedToZoho,
           quoteNumber: result.data?.quoteNumber || result.documentNumber,
+          onlinePaymentUrl: result.onlinePaymentUrl,
+          onlinePaymentExpiresAt: result.onlinePaymentExpiresAt,
           createdAt: result.createdAt,
           updatedAt: result.updatedAt,
         }

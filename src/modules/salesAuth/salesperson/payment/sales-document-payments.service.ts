@@ -13,6 +13,7 @@ import {
   SalesDocumentType,
 } from '../../models/sales-document.schema';
 import { ZohoPaymentGatewayService } from '../../../../integrations/payments/zoho-payment-gateway.service';
+import { ZohoPaymentLinksService } from '../../../../integrations/payments/zoho-payment-links.service';
 
 @Injectable()
 export class SalesDocumentPaymentsService {
@@ -20,6 +21,7 @@ export class SalesDocumentPaymentsService {
     @InjectModel(SalesDocument.name)
     private readonly salesDocumentModel: Model<SalesDocument>,
     private readonly zohoPaymentGateway: ZohoPaymentGatewayService,
+    private readonly zohoPaymentLinksService: ZohoPaymentLinksService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -88,6 +90,141 @@ export class SalesDocumentPaymentsService {
         session?.id ||
         session?.payments_session_id,
       paymentUrl,
+    };
+  }
+
+  async createPaymentLinkForQuotation(params: {
+    quotationId: string;
+    farmerName: string;
+    farmerPhone: string;
+    amount: number;
+    description?: string;
+    salespersonId?: string;
+  }) {
+    const { quotationId, farmerName, farmerPhone, amount, description } =
+      params;
+
+    if (!quotationId || typeof quotationId !== 'string') {
+      throw new BadRequestException('quotationId is required');
+    }
+
+    if (!farmerName || typeof farmerName !== 'string') {
+      throw new BadRequestException('farmerName is required');
+    }
+
+    if (!/^[0-9]{10}$/.test(String(farmerPhone))) {
+      throw new BadRequestException('farmerPhone must be a valid 10-digit number');
+    }
+
+    const finalAmount = Number(amount);
+    if (Number.isNaN(finalAmount) || finalAmount <= 0) {
+      throw new BadRequestException('amount must be a positive number');
+    }
+
+    const search: any = { documentNumber: quotationId };
+    if (params.salespersonId) {
+      search.salesperson_id = params.salespersonId;
+    }
+
+    const doc = await this.salesDocumentModel.findOne(search);
+    if (!doc) {
+      throw new BadRequestException('Quotation not found');
+    }
+
+    if (doc.type !== 'quotation') {
+      throw new BadRequestException(
+        'Payment links can only be generated for quotations',
+      );
+    }
+
+    const normalizedPhone = String(farmerPhone || '').trim();
+    const digits = normalizedPhone.replace(/\D/g, '');
+    const phone =
+      digits.length === 10
+        ? digits
+        : digits.length === 11 && digits.startsWith('0')
+        ? digits.slice(1)
+        : digits.length === 12 && digits.startsWith('91')
+        ? digits.slice(2)
+        : normalizedPhone;
+
+    let session: any;
+    try {
+      session = await this.zohoPaymentLinksService.createPaymentLink({
+        quotationId: quotationId,
+        farmerName: farmerName,
+        farmerPhone: phone,
+        amount: finalAmount,
+        description: description || `Payment for ${quotationId}`,
+      });
+    } catch (error: unknown) {
+      console.error('Failed to generate Zoho payment link', error);
+      throw new BadRequestException(
+        'Failed to generate payment link. Check Zoho payment configuration.',
+      );
+    }
+
+    const paymentLinks =
+      session?.payment_links ||
+      session?.payment_links?.[0] ||
+      session?.payment_link ||
+      session?.data?.payment_link ||
+      session?.data?.payment_links?.[0];
+    const paymentUrl =
+      paymentLinks?.url || paymentLinks?.payment_url || paymentLinks?.paymentLink ||
+      session?.url || session?.link;
+
+    if (!paymentUrl) {
+      console.error('Zoho response missing payment URL', JSON.stringify(session));
+      throw new BadRequestException('Failed to generate payment link');
+    }
+
+    const expiresAt = paymentLinks?.expires_at || new Date(Date.now() + 72 * 60 * 60 * 1000)
+      .toISOString()
+      .split('T')[0];
+    const expiresAtFormatted = new Date(expiresAt).toLocaleString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    await this.salesDocumentModel.updateOne(
+      { _id: doc._id },
+      {
+        $set: {
+          onlinePaymentUrl: paymentUrl,
+          onlinePaymentExpiresAt: expiresAt,
+          onlinePaymentSessionId:
+            session?.payments_session_id || session?.id || null,
+          paymentStatus: 'unpaid',
+          paymentMethod: 'online',
+        },
+      },
+    );
+
+    return {
+      code: 0,
+      message: 'Payment link generated',
+      payment_links: {
+        payment_link_id:
+          paymentLinks?.payment_link_id ||
+          paymentLinks?.id ||
+          session?.payment_link_id ||
+          null,
+        url: paymentUrl,
+        expires_at: expiresAt,
+        expires_at_formatted:
+          paymentLinks?.expires_at_formatted || expiresAtFormatted,
+        amount: finalAmount.toFixed(2),
+        currency: paymentLinks?.currency || session?.currency || 'INR',
+        status: paymentLinks?.status || session?.status || 'active',
+        reference_id: quotationId,
+        description: description || paymentLinks?.description || session?.description || '',
+        phone,
+      },
     };
   }
 

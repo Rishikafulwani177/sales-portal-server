@@ -6,10 +6,12 @@ import {
   SalesDocument,
   SalesDocumentSchema,
 } from '../../../salesAuth/models/sales-document.schema';
-import { ZohoPaymentGatewayService } from '../../../../integrations/payments/zoho-payment-gateway.service';
-import { ZohoPaymentsModule } from '../../../../zoho/payments/payments.module';
+import { PaymentsModule } from '../../../../integrations/payments/payments.module';
 import { SalesDocumentPaymentsController } from '../payment/sales-document-payments.controller';
+import { SalesPaymentLinksController } from './sales-payment-links.controller';
+import { SalesPaymentWebhookController } from './sales-payment-webhook.controller';
 import { SalesDocumentPaymentsService } from '../payment/sales-document-payments.service';
+import { SalespersonGuard } from '../../guards/salesperson.guard';
 
 @Module({
   imports: [
@@ -26,10 +28,10 @@ import { SalesDocumentPaymentsService } from '../payment/sales-document-payments
     MongooseModule.forFeature([
       { name: SalesDocument.name, schema: SalesDocumentSchema },
     ]),
-    ZohoPaymentsModule,
+    PaymentsModule,
   ],
-  controllers: [SalesDocumentPaymentsController],
-  providers: [SalesDocumentPaymentsService, ZohoPaymentGatewayService],
+  controllers: [SalesDocumentPaymentsController, SalesPaymentLinksController, SalesPaymentWebhookController],
+  providers: [SalesDocumentPaymentsService, SalespersonGuard],
   exports: [SalesDocumentPaymentsService],
 })
 export class SalesDocumentPaymentsModule {}

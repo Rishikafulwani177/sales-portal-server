@@ -56,6 +56,12 @@ export class SalesDocument {
   transactionId?: string;
 
   @Prop()
+  onlinePaymentUrl?: string;
+
+  @Prop()
+  onlinePaymentExpiresAt?: string;
+
+  @Prop()
   onlinePaymentSessionId?: string;
 
   @Prop()
