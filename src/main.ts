@@ -44,6 +44,8 @@ async function bootstrap() {
 
   // 🔥 CRITICAL: RAW BODY for Zoho webhook ONLY
   app.use('/payments/webhook', bodyParser.raw({ type: '*/*' }));
+  app.use('/payments/webhook-sales-doc', bodyParser.raw({ type: '*/*' }));
+  app.use('/sales-auth/salesperson/payments/webhook-sales-doc', bodyParser.raw({ type: '*/*' }));
 
   // ✅ Normal JSON parser for all other routes
   app.use(bodyParser.json());

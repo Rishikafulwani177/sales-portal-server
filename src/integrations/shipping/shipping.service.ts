@@ -1,7 +1,6 @@
 import {
   Injectable,
   HttpException,
-  HttpStatus,
   Logger,
 } from '@nestjs/common';
 import axios, { AxiosError, AxiosInstance } from 'axios';
@@ -11,12 +10,16 @@ import { ConfigService } from '@nestjs/config';
 export class ShippingService {
   private readonly logger = new Logger(ShippingService.name);
   private axiosInstance: AxiosInstance;
+  private readonly fallbackShippingCharge: number;
 
   constructor(private configService: ConfigService) {
     this.axiosInstance = axios.create({
       baseURL: this.configService.get<string>('SHIPMOZO_BASE_URL'),
       timeout: 5000,
     });
+    this.fallbackShippingCharge = Number(
+      this.configService.get<string>('SHIPMOZO_FALLBACK_CHARGE') ?? 0,
+    );
   }
 
   async calculateRate(
@@ -60,10 +63,10 @@ export class ShippingService {
       const rates = response?.data?.data || [];
 
       if (!rates.length) {
-        throw new HttpException(
-          'No shipping rates available',
-          HttpStatus.BAD_REQUEST,
+        this.logger.warn(
+          'Shipping API returned no rates; using fallback shipping charge',
         );
+        return this.getFallbackRate('No shipping rates available');
       }
 
 
@@ -93,6 +96,15 @@ export class ShippingService {
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
         const err = error as AxiosError;
+        const hasApiResponse = Boolean(err.response);
+
+        if (!hasApiResponse) {
+          this.logger.warn(
+            `Shipping API unavailable; using fallback shipping charge (${err.message})`,
+          );
+
+          return this.getFallbackRate(err.message);
+        }
 
         this.logger.error('Shipping API failed', {
           data: err.response?.data,
@@ -109,15 +121,23 @@ export class ShippingService {
         );
       }
 
-      this.logger.error('Unknown error', error);
+      this.logger.warn('Shipping rate unavailable; using fallback shipping charge');
 
-      throw new HttpException(
-        {
-          success: false,
-          message: 'Unexpected error occurred',
-        },
-        500,
+      return this.getFallbackRate(
+        error instanceof Error ? error.message : 'Unexpected error occurred',
       );
     }
+  }
+
+  private getFallbackRate(reason: string) {
+    return {
+      success: true,
+      fallback: true,
+      shippingCharge: this.fallbackShippingCharge,
+      courier: 'Fallback shipping',
+      estimatedDelivery: null,
+      fullResponse: null,
+      warning: reason,
+    };
   }
 }

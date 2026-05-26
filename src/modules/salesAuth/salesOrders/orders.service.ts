@@ -169,6 +169,15 @@ export class OrdersService {
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );
 
+    console.log(
+      'SALES_ORDER_CREATED_OR_UPDATED_IN_MONGO:',
+      JSON.stringify(
+        typeof order.toObject === 'function' ? order.toObject() : order,
+        null,
+        2,
+      ),
+    );
+
     if (order.isSyncedToZoho) {
       this.logSavedOrderDetails(order);
       return order;

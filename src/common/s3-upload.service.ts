@@ -4,13 +4,18 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  GetObjectCommand,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as crypto from 'crypto';
 
 const MAX_IMAGE_SIZE_MB = 10;
 const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
+const MAX_QUOTATION_PDF_SIZE_MB = 15;
+const MAX_QUOTATION_PDF_SIZE_BYTES = MAX_QUOTATION_PDF_SIZE_MB * 1024 * 1024;
+const DEFAULT_QUOTATION_SIGNED_URL_EXPIRY_SECONDS = 15 * 60;
 
 @Injectable()
 export class S3UploadService {
@@ -154,6 +159,108 @@ export class S3UploadService {
       this.logger.error(
         `❌ Failed to delete from S3: ${s3Key} — ${err.message}`,
       );
+    }
+  }
+
+  async uploadQuotationPdf(
+    quotationId: string,
+    buffer: Buffer,
+  ): Promise<{ s3Key: string }> {
+    if (!quotationId?.trim()) {
+      throw new Error('Quotation id is required');
+    }
+
+    if (!buffer?.length) {
+      throw new Error('Quotation PDF is required');
+    }
+
+    if (buffer.length > MAX_QUOTATION_PDF_SIZE_BYTES) {
+      throw new Error(
+        `Quotation PDF too large: ${(buffer.length / 1024 / 1024).toFixed(
+          2,
+        )}MB exceeds ${MAX_QUOTATION_PDF_SIZE_MB}MB`,
+      );
+    }
+
+    const s3Key = `quotations/${quotationId}.pdf`;
+
+    try {
+      await this.s3.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: s3Key,
+          Body: buffer,
+          ContentType: 'application/pdf',
+          ContentDisposition: `attachment; filename="${quotationId}.pdf"`,
+        }),
+      );
+
+      this.logger.log(`Uploaded private quotation PDF to S3: ${s3Key}`);
+      return { s3Key };
+    } catch (err: any) {
+      this.logger.error(
+        `Failed to upload quotation PDF to S3: ${s3Key} - ${err.message}`,
+      );
+      throw err;
+    }
+  }
+
+  async getQuotationSignedUrl(
+    s3Key: string,
+    expiresInSeconds = DEFAULT_QUOTATION_SIGNED_URL_EXPIRY_SECONDS,
+  ): Promise<string> {
+    if (!s3Key?.startsWith('quotations/')) {
+      throw new Error('Invalid quotation PDF key');
+    }
+
+    const expiresIn = Number.isFinite(expiresInSeconds)
+      ? Math.max(60, Math.min(expiresInSeconds, 60 * 60))
+      : DEFAULT_QUOTATION_SIGNED_URL_EXPIRY_SECONDS;
+
+    try {
+      return getSignedUrl(
+        this.s3,
+        new GetObjectCommand({
+          Bucket: this.bucket,
+          Key: s3Key,
+        }),
+        { expiresIn },
+      );
+    } catch (err: any) {
+      this.logger.error(
+        `Failed to generate quotation signed URL: ${s3Key} - ${err.message}`,
+      );
+      throw err;
+    }
+  }
+
+  async deleteQuotationPdf(s3Key: string): Promise<void> {
+    if (!s3Key) return;
+    if (!s3Key.startsWith('quotations/')) {
+      throw new Error('Invalid quotation PDF key');
+    }
+
+    try {
+      const exists = await this.fileExists(s3Key);
+
+      if (!exists) {
+        this.logger.warn(`Quotation PDF not found in S3: ${s3Key}`);
+        return;
+      }
+
+      await this.s3.send(
+        new DeleteObjectCommand({
+          Bucket: this.bucket,
+          Key: s3Key,
+        }),
+      );
+
+      this.logger.log(`Deleted quotation PDF from S3: ${s3Key}`);
+    } catch (err: any) {
+      this.logger.error(
+        `Failed to delete quotation PDF from S3: ${s3Key} - ${err.message}`,
+      );
+      throw err;
     }
   }
 }

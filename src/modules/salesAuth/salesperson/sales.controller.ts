@@ -279,7 +279,10 @@ export class SalesController {
     try {
       await this.refreshStockAndUnitsFromZoho();
     } catch (error: any) {
-      console.warn('Zoho inventory refresh failed, falling back to local product data:', error?.message || error);
+      console.log(
+        'Zoho inventory refresh skipped; using local product data:',
+        error?.message || error,
+      );
     }
   }
 

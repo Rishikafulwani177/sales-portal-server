@@ -235,6 +235,8 @@ export class SalesDocumentPaymentsService {
   }
 
   async handleZohoWebhook(req: Request) {
+    console.log('[SalesPaymentWebhook] Webhook received');
+
     const signature = (req.headers['x-zoho-webhook-token'] as string) || '';
     const secret = this.configService.getOrThrow<string>(
       'ZOHO_PAYMENTS_SIGNING_KEY',
@@ -244,10 +246,12 @@ export class SalesDocumentPaymentsService {
     const rawBody: Buffer | undefined = anyReq.rawBody || anyReq.body;
 
     if (!rawBody || !(rawBody instanceof Buffer)) {
+      console.error('[SalesPaymentWebhook] Missing raw body');
       throw new UnauthorizedException('Missing raw body');
     }
 
     if (!this.verifySignature(rawBody, signature, secret)) {
+      console.error('[SalesPaymentWebhook] Invalid webhook signature');
       throw new UnauthorizedException('Invalid webhook signature');
     }
 
@@ -261,14 +265,44 @@ export class SalesDocumentPaymentsService {
       payment?.reference_id ||
       payload.event_object?.payment_link?.reference_id;
 
-    if (!referenceNumber) return { received: true };
+    console.log('[SalesPaymentWebhook] Parsed payload:', {
+      eventType,
+      paymentId,
+      amount,
+      referenceNumber,
+    });
+
+    if (!referenceNumber) {
+      console.warn('[SalesPaymentWebhook] No quotation reference found in payload');
+      return { received: true };
+    }
 
     const doc = await this.salesDocumentModel.findOne({
       documentNumber: referenceNumber,
     });
-    if (!doc) return { received: true };
+    if (!doc) {
+      console.warn('[SalesPaymentWebhook] No sales document found for reference:', referenceNumber);
+      return { received: true };
+    }
 
-    if (eventType === 'payment.succeeded') {
+    const isPaymentSucceeded =
+      eventType === 'payment.succeeded' ||
+      eventType === 'payment_link.paid' ||
+      eventType === 'paymentlink.paid';
+
+    const isPaymentFailed =
+      eventType === 'payment.failed' ||
+      eventType === 'payment_link.failed' ||
+      eventType === 'paymentlink.failed';
+
+    if (isPaymentSucceeded) {
+      console.log('[SalesPaymentWebhook] Payment succeeded for quotation:', {
+        documentNumber: doc.documentNumber,
+        type: doc.type,
+        paymentId,
+        amount,
+      });
+
       await this.salesDocumentModel.updateOne(
         { _id: doc._id },
         {
@@ -299,7 +333,9 @@ export class SalesDocumentPaymentsService {
       }
     }
 
-    if (eventType === 'payment.failed') {
+    if (isPaymentFailed) {
+      console.log('[SalesPaymentWebhook] Payment failed for quotation:', referenceNumber);
+
       await this.salesDocumentModel.updateOne(
         { _id: doc._id },
         { $set: { paymentStatus: 'failed', paymentMethod: 'online' } },

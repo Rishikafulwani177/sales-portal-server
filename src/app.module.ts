@@ -18,6 +18,7 @@ import { ZohoImageSyncModule } from './integrations/zoho-image-sync/zoho-image-s
 import { ZohoPaymentsModule } from './zoho/payments/payments.module';
 import { ShippingModule } from './integrations/shipping/shipping.module';
 import { SalesAuthModule } from './modules/salesAuth/salesAuth.module';
+import { QuotationModule } from './modules/quotation/quotation.module';
 
 
 @Module({
@@ -43,6 +44,7 @@ import { SalesAuthModule } from './modules/salesAuth/salesAuth.module';
     ZohoImageSyncModule,
     ShippingModule,
     SalesAuthModule,
+    QuotationModule,
   ],
   controllers: [AppController, CallbackController],
   providers: [AppService],

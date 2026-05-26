@@ -64,6 +64,15 @@ export class SalesDocument {
   @Prop()
   onlinePaymentSessionId?: string;
 
+  @Prop({ index: true, sparse: true })
+  quotationPublicId?: string;
+
+  @Prop()
+  s3Key?: string;
+
+  @Prop()
+  pdfUploadedAt?: Date;
+
   @Prop()
   zohoSalesOrderId?: string;
 
@@ -81,3 +90,7 @@ SalesDocumentSchema.index(
   { unique: true },
 );
 SalesDocumentSchema.index({ salesperson_id: 1, createdAt: -1 });
+SalesDocumentSchema.index(
+  { quotationPublicId: 1 },
+  { unique: true, sparse: true },
+);
