@@ -9,8 +9,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, isValidObjectId } from 'mongoose';
-import { Product } from '../../products/schemas/product.schema';
+import { Model } from 'mongoose';
+import { AppApiService } from '../../../common/app-api.service';
 import { ZohoInventoryService } from '../../../zoho/inventory/inventory.service';
 import { CurrentSalesUser } from '../decorators/current-sales-user.decorator';
 import { SalespersonLoginDto } from '../dto/salesperson-login.dto';
@@ -22,8 +22,7 @@ import { SalesAuthService } from '../salesAuth.service';
 export class SalesController {
   constructor(
     private salesAuthService: SalesAuthService,
-    @InjectModel(Product.name)
-    private productModel: Model<Product>,
+    private appApi: AppApiService,
     @InjectModel(SalesDocument.name)
     private salesDocumentModel: Model<SalesDocument>,
     private zohoInventoryService: ZohoInventoryService,
@@ -37,34 +36,14 @@ export class SalesController {
   @UseGuards(SalespersonGuard)
   @Get('products')
   async getProductsForSalesperson() {
-    await this.safeRefreshStockAndUnitsFromZoho();
-
-    const products = await this.productModel
-      .find({
-        is_active: true,
-        show_in_storefront: true,
-      })
-      .select(
-        'name price stock unit description image category_name sku weight weight_unit dimensions zoho_item_id show_in_storefront',
-      )
-      .lean();
-
-    return {
-      data: products,
-      total: products.length,
-    };
+    // Fetch products from the app server API
+    return this.appApi.getActiveProducts();
   }
 
   @UseGuards(SalespersonGuard)
   @Get('products/:id')
   async getProductForSalesperson(@Param('id') id: string) {
-    await this.safeRefreshStockAndUnitsFromZoho();
-
-    const query = isValidObjectId(id)
-      ? { $or: [{ _id: id }, { zoho_item_id: id }] }
-      : { zoho_item_id: id };
-
-    const product = await this.productModel.findOne(query).lean();
+    const product = await this.appApi.getProductById(id);
 
     if (!product) {
       throw new BadRequestException('Product not found');
@@ -237,58 +216,7 @@ export class SalesController {
       : null;
   }
 
-  private async refreshStockAndUnitsFromZoho() {
-    let page = 1;
-    const perPage = 200;
-    let hasMore = true;
-    const operations: any[] = [];
-
-    while (hasMore) {
-      const response = await this.zohoInventoryService.getItems(page, perPage);
-      const items = response?.items || [];
-
-      for (const item of items) {
-        const zohoItemId = String(item.item_id || '');
-        if (!zohoItemId) continue;
-
-        operations.push({
-          updateOne: {
-            filter: { zoho_item_id: zohoItemId },
-            update: {
-              $set: {
-                price: Number(item.rate || 0),
-                stock: this.getZohoStock(item),
-                unit: this.getZohoUnit(item),
-                is_active: item.status ? item.status === 'active' : true,
-              },
-            },
-          },
-        });
-      }
-
-      hasMore = items.length === perPage;
-      page++;
-    }
-
-    if (operations.length > 0) {
-      await this.productModel.bulkWrite(operations, { ordered: false });
-    }
-  }
-
-  private async safeRefreshStockAndUnitsFromZoho() {
-    try {
-      await this.refreshStockAndUnitsFromZoho();
-    } catch (error: any) {
-      console.log(
-        'Zoho inventory refresh skipped; using local product data:',
-        error?.message || error,
-      );
-    }
-  }
-
   private async createZohoSalesOrderAndReduceStock(invoice: any) {
-    await this.refreshStockAndUnitsFromZoho();
-
     const processedItems = await Promise.all(
       (invoice.items || []).map(async (item: any) => {
         const product = await this.findProductForSalesItem(item);
@@ -301,9 +229,10 @@ export class SalesController {
           throw new Error(`Invalid quantity for ${item.name || product.name}`);
         }
 
+        // Stock is validated against the app server's data
         if (Number(product.stock || 0) < quantity) {
           throw new Error(
-            `${product.name} has only ${product.stock || 0} ${product.unit || product.weight_unit || 'units'} in stock`,
+            `${product.name} has only ${product.stock || 0} in stock`,
           );
         }
 
@@ -356,46 +285,23 @@ export class SalesController {
       customerId,
     );
 
-    await Promise.all(
-      processedItems.map((item) =>
-        this.productModel.updateOne(
-          { zoho_item_id: item.zohoItemId },
-          { $inc: { stock: -item.quantity } },
-        ),
-      ),
-    );
+    // Stock is managed by Zoho after the sales order is created.
+    // No need to decrement local DB stock — we don't have a local product DB.
 
     return zohoSalesOrderId;
   }
 
-  private async findProductForSalesItem(item: any) {
+  private async findProductForSalesItem(item: any): Promise<any | null> {
     const zohoItemId = item.zoho_item_id || item.zohoItemId || item.raw?.zoho_item_id;
     if (zohoItemId) {
-      return this.productModel.findOne({ zoho_item_id: String(zohoItemId) });
+      return this.appApi.getProductById(String(zohoItemId));
     }
 
-    return this.productModel.findById(item.id);
-  }
+    if (item.id) {
+      return this.appApi.getProductById(item.id);
+    }
 
-  private getZohoStock(item: any) {
-    return Number(
-      item.actual_available_stock ??
-        item.available_stock ??
-        item.stock_available ??
-        item.stock_on_hand ??
-        0,
-    );
-  }
-
-  private getZohoUnit(item: any) {
-    return (
-      item.unit ||
-      item.unit_name ||
-      item.purchase_unit ||
-      item.sales_rate_unit ||
-      item.package_details?.weight_unit ||
-      ''
-    );
+    return null;
   }
 
   private limitZohoAddress(value: any) {

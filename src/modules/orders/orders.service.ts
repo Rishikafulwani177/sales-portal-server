@@ -7,7 +7,7 @@ import { ZohoPaymentGatewayService } from '../../integrations/payments/zoho-paym
 import { User } from '../users/schemas/user.schema';
 import { ZohoInventoryService } from '../../zoho/inventory/inventory.service';
 import { CartService } from '../cart/cart.service';
-import { Product } from '../products/schemas/product.schema';
+import { AppApiService } from '../../common/app-api.service';
 import { ShippingService } from '../../integrations/shipping/shipping.service';
 import { UsersService } from '../users/users.service';
 import { SmsService } from './sms.service';
@@ -20,7 +20,7 @@ export class OrdersService {
   constructor(
     private zohoInventoryService: ZohoInventoryService,
     @InjectModel(Order.name) private orderModel: Model<Order>,
-    @InjectModel(Product.name) private productModel: Model<Product>,
+    private appApi: AppApiService,
     @InjectModel(User.name) private userModel: Model<User>,
     private readonly usersService: UsersService,
     private cartService: CartService,
@@ -124,14 +124,18 @@ export class OrdersService {
 
     const items = await Promise.all(
       cart.items.map(async (item: any) => {
-        const product = await this.productModel.findById(item.product_id);
+        // Fetch product from app server API using zoho_item_id or product_id
+        const lookupId = item.zoho_item_id || item.product_id;
+        const product = lookupId
+          ? await this.appApi.getProductById(String(lookupId))
+          : null;
 
         if (!product) {
           throw new Error(`Product not found: ${item.product_id}`);
         }
 
         return {
-          productId: product._id,
+          productId: product._id || product.zoho_item_id,
           name: product.name,
           price: product.price,
           quantity: item.quantity,

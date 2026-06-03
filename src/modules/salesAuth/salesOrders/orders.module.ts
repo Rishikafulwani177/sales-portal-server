@@ -7,7 +7,7 @@ import { Order, OrderSchema } from './schemas/order.schema';
 import { PaymentsModule } from '../../../integrations/payments/payments.module';
 import { OrdersController } from './orders.controller';
 import { ZohoModule } from '../../../zoho/zoho.module';
-import { Product, ProductSchema } from '../../products/schemas/product.schema';
+
 import { ShippingModule } from '../../../integrations/shipping/shipping.module';
 import { SmsService } from './sms.service';
 import { CommunicationService } from './communication.service';
@@ -28,7 +28,6 @@ import { SalespersonGuard } from '../guards/salesperson.guard';
     }),
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },
-      { name: Product.name, schema: ProductSchema },
     ]),
     ZohoModule,
     PaymentsModule,

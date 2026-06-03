@@ -5,7 +5,7 @@ import { Model } from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import { ZohoPaymentGatewayService } from '../../../integrations/payments/zoho-payment-gateway.service';
 import { ZohoInventoryService } from '../../../zoho/inventory/inventory.service';
-import { Product } from '../../products/schemas/product.schema';
+import { AppApiService } from '../../../common/app-api.service';
 import { ShippingService } from '../../../integrations/shipping/shipping.service';
 import { SmsService } from './sms.service';
 import { Coupon } from '../../coupon/schema/coupon.schema';
@@ -18,7 +18,7 @@ export class OrdersService {
   constructor(
     private zohoInventoryService: ZohoInventoryService,
     @InjectModel(Order.name) private orderModel: Model<Order>,
-    @InjectModel(Product.name) private productModel: Model<Product>,
+    private appApi: AppApiService,
     private paymentService: ZohoPaymentGatewayService,
     private shippingService: ShippingService,
     private readonly smsService: SmsService,
@@ -216,13 +216,12 @@ export class OrdersService {
     const items = await Promise.all(
       rawItems.map(async (item: any) => {
         const productId = item.productId || item.product_id || item.id;
-        const product = productId
-          ? await this.productModel.findById(productId)
-          : item.zohoItemId || item.zoho_item_id
-            ? await this.productModel.findOne({
-              zoho_item_id: String(item.zohoItemId || item.zoho_item_id),
-            })
-            : null;
+        const zohoItemId = item.zohoItemId || item.zoho_item_id;
+        const lookupId = zohoItemId || productId;
+
+        const product = lookupId
+          ? await this.appApi.getProductById(String(lookupId))
+          : null;
 
         if (!product) {
           throw new Error(`Product not found: ${productId || item.name}`);

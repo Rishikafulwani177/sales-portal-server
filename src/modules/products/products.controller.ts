@@ -1,6 +1,5 @@
-import { BadRequestException, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ProductsService } from './products.service';
-import { isValidObjectId } from 'mongoose';
 
 @Controller('products')
 export class ProductsController {
@@ -10,12 +9,6 @@ export class ProductsController {
   @Get()
   async getProducts() {
     return this.productsService.getActiveProducts();
-  }
-
-  @Post('sync-all-now')
-  async syncAllNow() {
-    await this.productsService.syncZohoProducts();
-    return { message: 'Full sync started' };
   }
 
   @Get('/id/:id')

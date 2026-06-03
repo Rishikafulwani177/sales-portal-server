@@ -7,7 +7,7 @@ import {
   Salesperson,
   SalespersonSchema,
 } from '../models/salesperson.schema';
-import { Product, ProductSchema } from '../../products/schemas/product.schema';
+
 import { ZohoModule } from '../../../zoho/zoho.module';
 import {
   SalesDocument,
@@ -25,7 +25,7 @@ import { SalesDocumentPaymentsModule } from './payment/sales-document-payments.m
     MongooseModule.forFeature([
       { name: SalesAdmin.name, schema: SalesAdminSchema },
       { name: Salesperson.name, schema: SalespersonSchema },
-      { name: Product.name, schema: ProductSchema },
+
       { name: SalesDocument.name, schema: SalesDocumentSchema },
     ]),
     JwtModule.registerAsync({

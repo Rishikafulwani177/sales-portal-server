@@ -14,7 +14,7 @@ import { CategoryModule } from './modules/categories/categories.module';
 import { RedisModule } from './common/redis/redis.module';
 import { CartModule } from './modules/cart/cart.module';
 import { WishlistModule } from './modules/wishlist/wishlist.module';
-import { ZohoImageSyncModule } from './integrations/zoho-image-sync/zoho-image-sync.module';
+import { AppApiModule } from './common/app-api.module';
 import { ZohoPaymentsModule } from './zoho/payments/payments.module';
 import { ShippingModule } from './integrations/shipping/shipping.module';
 import { SalesAuthModule } from './modules/salesAuth/salesAuth.module';
@@ -41,7 +41,7 @@ import { QuotationModule } from './modules/quotation/quotation.module';
     RedisModule,
     CartModule,
     WishlistModule,
-    ZohoImageSyncModule,
+    AppApiModule,
     ShippingModule,
     SalesAuthModule,
     QuotationModule,

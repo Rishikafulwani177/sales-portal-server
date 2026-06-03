@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Category } from './schemas/category.schema';
-import { Product } from '../products/schemas/product.schema';
 import { Model } from 'mongoose';
+import { AppApiService } from '../../common/app-api.service';
 
 @Injectable()
 export class CategoryService {
@@ -10,30 +10,16 @@ export class CategoryService {
     @InjectModel(Category.name)
     private categoryModel: Model<Category>,
 
-    @InjectModel(Product.name)
-    private productModel: Model<Product>,
+    private appApi: AppApiService,
   ) {}
 
-  // 🔥 SYNC CATEGORIES FROM PRODUCTS
+  // 🔥 SYNC CATEGORIES FROM APP SERVER API
   async syncCategories() {
-    const categories = await this.productModel.aggregate([
-      {
-        $match: {
-          is_active: true,
-          show_in_storefront: true,
-        },
-      },
-      {
-        $group: {
-          _id: '$category_id',
-          name: { $first: '$category_name' },
-        },
-      },
-    ]);
+    const categories = await this.appApi.getCategories();
 
     for (const cat of categories) {
       await this.categoryModel.updateOne(
-        { category_id: cat._id },
+        { category_id: cat.id },
         {
           $set: {
             name: cat.name,

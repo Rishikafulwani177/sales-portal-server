@@ -1,14 +1,14 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Product } from '../products/schemas/product.schema';
+import { AppApiService } from '../../common/app-api.service';
 import { Cart } from './schemas/cart.schema';
 
 @Injectable()
 export class CartService {
   constructor(
     @InjectModel(Cart.name) private cartModel: Model<Cart>,
-    @InjectModel(Product.name) private productModel: Model<Product>,
+    private appApi: AppApiService,
   ) { }
 
   async getOrCreateForGuest(guestSessionId: string) {
@@ -58,18 +58,12 @@ export class CartService {
 
   private async upsertItem(cart: Cart, productId: string, quantity: number) {
 
-    if (!Types.ObjectId.isValid(productId)) {
-      throw new BadRequestException('Invalid product ID');
-    }
-
-
     if (!Number.isInteger(quantity) || quantity < 0) {
       throw new BadRequestException('Invalid quantity');
     }
 
-    const pid = new Types.ObjectId(productId);
-
-    const product = await this.productModel.findById(pid).lean();
+    // Fetch product from app server API
+    const product = await this.appApi.getProductById(productId);
 
     if (!product || !product.is_active) {
       throw new BadRequestException('Invalid product');
@@ -83,8 +77,11 @@ export class CartService {
       throw new BadRequestException('Insufficient stock');
     }
 
+    // Use the productId string as the cart key (works for zoho_item_id or _id)
+    const cartKey = productId;
+
     const idx = cart.items.findIndex(
-      (i) => i.product_id.toString() === pid.toString(),
+      (i) => i.product_id.toString() === cartKey,
     );
 
     if (quantity === 0) {
@@ -93,7 +90,7 @@ export class CartService {
       cart.items[idx].quantity = quantity;
     } else {
       cart.items.push({
-        product_id: pid,
+        product_id: cartKey,
         quantity,
       } as any);
     }
@@ -116,49 +113,37 @@ export class CartService {
     const items = cart.items ?? [];
 
     if (!items.length) {
-      return { cart_id: cart._id, items: [], total_amount: 0 };
+      return { cart_id: cart._id, items: [], total_amount: 0, totalWeight: 0 };
     }
 
-    const productIds = items.map((i) => i.product_id);
+    // Fetch product details from app server API for each cart item
+    const detailed = await Promise.all(
+      items.map(async (i) => {
+        const id = i.product_id.toString();
+        const p = await this.appApi.getProductById(id).catch(() => null);
+        const price = p?.price ?? 0;
 
-    const products = await this.productModel
-      .find({
-        _id: { $in: productIds },
-        is_active: true,
-        show_in_storefront: true,
-      })
-      .select(
-        'name price stock image weight weight_unit dimensions is_active',
-      )
-      .lean();
+        let weight = 0;
+        if (p?.weight) {
+          weight =
+            p.weight_unit === 'kg'
+              ? p.weight * 1000
+              : p.weight;
+        }
 
-    const byId = new Map(products.map((p: any) => [p._id.toString(), p]));
-
-    const detailed = items.map((i) => {
-      const p = byId.get(i.product_id.toString());
-      const price = p?.price ?? 0;
-
-      let weight = 0;
-      if (p?.weight) {
-        weight =
-          p.weight_unit === 'kg'
-            ? p.weight * 1000
-            : p.weight;
-      }
-
-      return {
-        product_id: i.product_id,
-        quantity: i.quantity,
-        name: p?.name,
-        price,
-        line_total: price * i.quantity,
-
-        image_url: p?.image?.image_url || null,
-
-        weight,
-        total_weight: weight * i.quantity,
-      };
-    });
+        return {
+          product_id: i.product_id,
+          zoho_item_id: p?.zoho_item_id || null,
+          quantity: i.quantity,
+          name: p?.name,
+          price,
+          line_total: price * i.quantity,
+          image_url: p?.image?.image_url || null,
+          weight,
+          total_weight: weight * i.quantity,
+        };
+      }),
+    );
 
     const totalWeight = detailed.reduce(
       (sum, item) => sum + item.total_weight,
@@ -201,7 +186,7 @@ export class CartService {
 
     userCart.items = Array.from(qtyByProduct.entries()).map(
       ([pid, quantity]) => ({
-        product_id: new Types.ObjectId(pid),
+        product_id: pid,
         quantity,
       }),
     ) as any;

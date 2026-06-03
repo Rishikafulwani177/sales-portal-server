@@ -9,7 +9,7 @@ import { CartModule } from '../cart/cart.module';
 import { ZohoModule } from '../../zoho/zoho.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
-import { Product, ProductSchema } from '../products/schemas/product.schema';
+
 import { ShippingModule } from '../../integrations/shipping/shipping.module';
 import { SmsService } from './sms.service';
 import { CommunicationService } from './communication.service';
@@ -20,7 +20,6 @@ import { CouponModule } from '../coupon/coupon.module';
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },
       { name: User.name, schema: UserSchema },
-      { name: Product.name, schema: ProductSchema },
     ]),
     UsersModule,
     ZohoModule,

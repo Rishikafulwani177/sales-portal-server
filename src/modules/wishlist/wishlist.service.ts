@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Wishlist, WishlistDocument } from './schema/wishlist.schema';
 import { Model } from 'mongoose';
-import { Product, ProductDocument } from '../products/schemas/product.schema';
+import { AppApiService } from '../../common/app-api.service';
 
 @Injectable()
 export class WishlistService {
@@ -10,8 +10,7 @@ export class WishlistService {
     @InjectModel(Wishlist.name)
     private wishlistModel: Model<WishlistDocument>,
 
-    @InjectModel(Product.name)
-    private productModel: Model<ProductDocument>,
+    private appApi: AppApiService,
   ) { }
 
   async getWishlist(userId: string) {
@@ -24,24 +23,19 @@ export class WishlistService {
       });
     }
 
-    // 🔥 Extract IDs
-    const ids = wishlist.items.map((i) => i.zoho_item_id);
+    // Fetch product details from app server API for each wishlist item
+    const items = await Promise.all(
+      wishlist.items.map(async (item) => {
+        const product = await this.appApi
+          .getProductById(item.zoho_item_id)
+          .catch(() => null);
 
-    // 🔥 Fetch products from local DB
-    const products = await this.productModel.find({
-      zoho_item_id: { $in: ids },
-      is_active: true,
-      show_in_storefront: true,
-    });
-
-    // 🔥 Map products
-    const productMap = new Map(products.map((p) => [p.zoho_item_id, p]));
-
-    // 🔥 Attach product data
-    const items = wishlist.items.map((item) => ({
-      zoho_item_id: item.zoho_item_id,
-      product: productMap.get(item.zoho_item_id) || null,
-    }));
+        return {
+          zoho_item_id: item.zoho_item_id,
+          product: product || null,
+        };
+      }),
+    );
 
     return {
       userId: wishlist.userId,
