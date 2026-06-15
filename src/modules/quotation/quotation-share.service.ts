@@ -203,7 +203,7 @@ export class QuotationShareService {
       ? await this.getSignedUrlOrThrow(quotation.s3Key)
       : null;
     const paymentLink = quotation.onlinePaymentUrl || null;
-    const quotationLink = `${this.getFrontendBaseUrl()}/quotation/public/${publicId}`;
+    const quotationLink = pdfDownloadUrl || `${this.getFrontendBaseUrl()}/quotation/public/${publicId}`;
     const customerName = quotation.customerName || 'Customer';
 
     return {
@@ -215,6 +215,7 @@ export class QuotationShareService {
         customerName,
         quotationLink,
         paymentLink,
+        pdfDownloadUrl,
       }),
     };
   }
@@ -260,14 +261,17 @@ export class QuotationShareService {
     customerName: string;
     quotationLink: string;
     paymentLink: string | null;
+    pdfDownloadUrl?: string | null;
   }) {
+    const viewLink = params.pdfDownloadUrl || params.quotationLink;
+
     return [
       `Hello ${params.customerName},`,
       '',
       'Your quotation is ready.',
       '',
       'View Quotation:',
-      params.quotationLink,
+      viewLink,
       '',
       'Complete Payment:',
       params.paymentLink || 'Payment link will be available on the quotation page.',
