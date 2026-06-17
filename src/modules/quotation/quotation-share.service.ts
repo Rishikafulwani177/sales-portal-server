@@ -203,7 +203,7 @@ export class QuotationShareService {
       ? await this.getSignedUrlOrThrow(quotation.s3Key)
       : null;
     const paymentLink = quotation.onlinePaymentUrl || null;
-    const quotationLink = pdfDownloadUrl || `${this.getFrontendBaseUrl()}/quotation/public/${publicId}`;
+    const quotationLink = `${this.getFrontendBaseUrl()}/quotation/public/${publicId}`;
     const customerName = quotation.customerName || 'Customer';
 
     return {
@@ -282,7 +282,7 @@ export class QuotationShareService {
     return (
       this.configService.get<string>('SALES_PORTAL_PUBLIC_URL') ||
       this.configService.get<string>('FRONTEND_URL') ||
-      'http://localhost:3000'
+      'https://sales-portal-next.vercel.app'
     ).replace(/\/$/, '');
   }
 

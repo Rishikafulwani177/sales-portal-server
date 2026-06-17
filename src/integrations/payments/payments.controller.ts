@@ -6,14 +6,18 @@ import {
   UnauthorizedException,
   Get,
   Param,
+  Logger,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import * as crypto from 'crypto';
 import { OrdersService } from '../../modules/orders/orders.service';
 import { ZohoPaymentLinksService } from './zoho-payment-links.service';
 import { CreatePaymentLinkDto } from './dto/create-payment-link.dto';
 import { SalesDocumentPaymentsService } from '../../modules/salesAuth/salesperson/payment/sales-document-payments.service';
+import { SalesDocument } from '../../modules/salesAuth/models/sales-document.schema';
 
 interface RawBodyRequest extends Request {
   rawBody?: Buffer;
@@ -21,11 +25,15 @@ interface RawBodyRequest extends Request {
 
 @Controller('payments')
 export class PaymentsController {
+  private readonly logger = new Logger(PaymentsController.name);
+
   constructor(
     private readonly ordersService: OrdersService,
     private readonly configService: ConfigService,
     private readonly zohoPaymentLinksService: ZohoPaymentLinksService,
     private readonly salesDocPaymentsService: SalesDocumentPaymentsService,
+    @InjectModel(SalesDocument.name)
+    private readonly salesDocumentModel: Model<SalesDocument>,
   ) { }
 
   @Post('webhook')
@@ -215,8 +223,37 @@ export class PaymentsController {
   async createPaymentLink(
     @Body() body: CreatePaymentLinkDto,
   ) {
-    return this.zohoPaymentLinksService.createPaymentLink(
+    const result = await this.zohoPaymentLinksService.createPaymentLink(
       body,
     );
+
+    // Save the payment link URL to the quotation document so it's available on the public page
+    const paymentUrl = result?.payment_links?.url;
+    const paymentLinkId = result?.payment_links?.paymentlink_id;
+    const expiresAt = result?.payment_links?.expires_at;
+
+    if (paymentUrl && body.quotationId) {
+      try {
+        await this.salesDocumentModel.updateOne(
+          { documentNumber: body.quotationId, type: 'quotation' },
+          {
+            $set: {
+              onlinePaymentUrl: paymentUrl,
+              ...(paymentLinkId && { onlinePaymentLinkId: paymentLinkId }),
+              ...(expiresAt && { onlinePaymentExpiresAt: expiresAt }),
+            },
+          },
+        );
+        this.logger.log(
+          `Saved payment link to quotation ${body.quotationId}: ${paymentUrl}`,
+        );
+      } catch (err: any) {
+        this.logger.warn(
+          `Failed to save payment link to quotation ${body.quotationId}: ${err.message}`,
+        );
+      }
+    }
+
+    return result;
   }
 }

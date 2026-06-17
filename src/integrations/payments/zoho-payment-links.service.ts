@@ -48,7 +48,7 @@ export class ZohoPaymentLinksService {
             phone_country_code: 'IN',
 
             expires_at: new Date(
-                Date.now() + 72 * 60 * 60 * 1000,
+                Date.now() + 24 * 60 * 60 * 1000,
             )
                 .toISOString()
                 .split('T')[0],
